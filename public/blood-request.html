@@ -442,25 +442,51 @@
             .form-row {
                 grid-template-columns: 1fr;
             }
-
             .blood-grid {
                 grid-template-columns: repeat(4, 1fr);
                 gap: 7px;
             }
-
             .card-body {
                 padding: 20px;
             }
-
             .main-wrap {
                 margin-top: 20px;
             }
-
             #requestMap {
                 height: 220px;
             }
+            /* Form fields full-width */
+            .form-control {
+                font-size: 0.95rem;
+            }
+            .btn-submit {
+                font-size: 0.95rem;
+            }
+            .btn-location {
+                font-size: 0.8rem;
+                padding: 7px 12px;
+            }
         }
-    </style>
+
+        /* ── TABLE SCROLL WRAPPER ── */
+        .table-scroll-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .table-scroll-wrap table {
+            min-width: 540px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        @media (max-width: 600px) {
+            .table-scroll-wrap {
+                border-radius: 10px;
+            }
+        }
+</style>
 </head>
 
 <body>
@@ -600,6 +626,8 @@
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
     <script src="/js/notify.js"></script>
+    <script src="/js/language.js"></script>
+    <script src="/js/nav-mobile.js"></script>
     <script src="/js/bd-districts.js"></script>
     <script src="/js/mapbox-utils.js"></script>
     <script>

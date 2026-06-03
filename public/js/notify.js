@@ -222,9 +222,18 @@
                 font-size: 22px;
                 font-weight: 300;
                 cursor: pointer;
-                padding: 12px 16px;
+                padding: 0;
+                min-width: 44px;
+                min-height: 44px;
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 align-self: center;
+                flex-shrink: 0;
                 transition: color 0.15s ease;
+                border-radius: 8px;
             }
             .ll-toast-close:hover {
                 color: #475569;
@@ -251,6 +260,28 @@
                 }
                 .ll-toast.show {
                     transform: translateY(0);
+                }
+                /* Mobile popup polish */
+                .ll-popup-body {
+                    padding: 20px 16px;
+                }
+                .ll-popup-title {
+                    font-size: 20px;
+                }
+                .ll-popup-desc {
+                    font-size: 14px;
+                }
+                .ll-popup-btn {
+                    font-size: 14px;
+                    padding: 13px 20px;
+                }
+                /* Toast close touch target */
+                .ll-toast-close {
+                    min-width: 44px;
+                    min-height: 44px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
             }
         `;

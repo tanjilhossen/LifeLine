@@ -1,52 +1,708 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LifeLine - Secure Login</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 h-screen flex items-center justify-center">
+    <title>লগিন — LifeLine</title>
+    <meta name="description" content="LifeLine — আপনার অ্যাকাউন্টে লগিন করুন।">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border-t-4 border-red-600">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 tracking-wider">🩸 LifeLine</h1>
-            <p class="text-gray-500 mt-2">সিকিউর লগিন প্যানেল</p>
+        :root {
+            --red: #e11d48;
+            --red-dark: #be123c;
+            --red-deep: #9f1239;
+            --red-glow: rgba(225,29,72,0.4);
+            --red-soft: rgba(225,29,72,0.12);
+            --dark: #060b18;
+            --dark2: #0b1124;
+            --text: #f1f5f9;
+            --text-muted: rgba(255,255,255,0.45);
+            --text-dim: rgba(255,255,255,0.25);
+            --border: rgba(255,255,255,0.08);
+            --input-bg: rgba(255,255,255,0.04);
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Hind Siliguri', 'Inter', sans-serif;
+            background: var(--dark);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* ─────────────────────────────────
+           ANIMATED BACKGROUND
+        ───────────────────────────────── */
+        .bg {
+            position: fixed; inset: 0; z-index: 0; overflow: hidden;
+        }
+
+        /* Base gradient */
+        .bg::before {
+            content: '';
+            position: absolute; inset: 0;
+            background:
+                radial-gradient(ellipse 90% 80% at 20% 10%, rgba(159,18,57,0.28) 0%, transparent 55%),
+                radial-gradient(ellipse 70% 60% at 80% 90%, rgba(29,78,216,0.14) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 50% at 50% 50%, rgba(6,11,24,0.9) 0%, #030710 100%);
+        }
+
+        /* Animated grid */
+        .bg-grid {
+            position: absolute; inset: -60px;
+            background-image:
+                linear-gradient(rgba(225,29,72,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(225,29,72,0.04) 1px, transparent 1px);
+            background-size: 64px 64px;
+            animation: gridMove 40s linear infinite;
+        }
+        @keyframes gridMove {
+            to { transform: translate(64px, 64px); }
+        }
+
+        /* Floating glow orbs */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            animation: orbFloat ease-in-out infinite alternate;
+        }
+        .orb-1 { width:500px;height:500px;background:radial-gradient(circle,rgba(190,18,60,0.2) 0%,transparent 70%);top:-150px;left:-150px;animation-duration:14s; }
+        .orb-2 { width:350px;height:350px;background:radial-gradient(circle,rgba(29,78,216,0.12) 0%,transparent 70%);bottom:-100px;right:-80px;animation-duration:18s;animation-delay:-6s; }
+        .orb-3 { width:250px;height:250px;background:radial-gradient(circle,rgba(225,29,72,0.1) 0%,transparent 70%);top:50%;left:60%;animation-duration:11s;animation-delay:-3s; }
+        @keyframes orbFloat {
+            0%   { transform: translate(0,0) scale(1); }
+            100% { transform: translate(24px,18px) scale(1.06); }
+        }
+
+        /* Rising sparkles */
+        .spark {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: sparkRise linear infinite;
+        }
+        @keyframes sparkRise {
+            0%   { transform: translateY(100vh); opacity: 0; }
+            6%   { opacity: 1; }
+            94%  { opacity: 0.5; }
+            100% { transform: translateY(-8vh); opacity: 0; }
+        }
+
+        /* ─────────────────────────────────
+           MAIN LAYOUT
+        ───────────────────────────────── */
+        .login-wrap {
+            position: relative; z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+
+        /* ─────────────────────────────────
+           CARD
+        ───────────────────────────────── */
+        .login-card {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(10,16,32,0.85);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 28px;
+            padding: 48px 44px 40px;
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            box-shadow:
+                0 40px 80px rgba(0,0,0,0.5),
+                0 0 0 1px rgba(255,255,255,0.05),
+                inset 0 1px 0 rgba(255,255,255,0.07);
+            animation: cardIn 0.65s cubic-bezier(0.34,1.56,0.64,1) both;
+            position: relative;
+            overflow: hidden;
+        }
+        @keyframes cardIn {
+            from { opacity:0; transform:translateY(36px) scale(0.96); }
+            to   { opacity:1; transform:translateY(0)    scale(1); }
+        }
+
+        /* Top accent bar */
+        .card-accent {
+            position: absolute; top:0; left:0; right:0; height:3px;
+            background: linear-gradient(90deg, var(--red-dark), var(--red), rgba(251,146,60,0.8), var(--red), var(--red-dark));
+            background-size: 200% 100%;
+            animation: accentShift 4s linear infinite;
+        }
+        @keyframes accentShift {
+            0%   { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+
+        /* Shake animation for errors */
+        @keyframes shake {
+            0%,100% { transform:translateX(0); }
+            15%      { transform:translateX(-7px); }
+            30%      { transform:translateX(6px); }
+            45%      { transform:translateX(-4px); }
+            60%      { transform:translateX(3px); }
+            75%      { transform:translateX(-2px); }
+        }
+        .shake { animation: shake 0.5s ease !important; }
+
+        /* ─────────────────────────────────
+           LOGO / HEADER
+        ───────────────────────────────── */
+        .card-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 32px;
+            text-decoration: none;
+            animation: fadeDown 0.5s ease 0.1s both;
+        }
+        @keyframes fadeDown {
+            from { opacity:0; transform:translateY(-12px); }
+            to   { opacity:1; transform:translateY(0); }
+        }
+        .logo-icon-box {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--red-deep), var(--red-dark), var(--red));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 18px var(--red-glow);
+            animation: logoGlow 3s ease-in-out infinite;
+        }
+        @keyframes logoGlow {
+            0%,100% { box-shadow: 0 4px 18px var(--red-glow); }
+            50%      { box-shadow: 0 4px 28px rgba(225,29,72,0.7), 0 0 50px rgba(225,29,72,0.15); }
+        }
+        .logo-text-brand {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.6rem; font-weight: 900;
+            color: #fff; letter-spacing: -0.5px;
+        }
+        .logo-text-brand em {
+            font-style: normal;
+            color: var(--red);
+        }
+
+        /* ─────────────────────────────────
+           FORM TITLE
+        ───────────────────────────────── */
+        .form-heading { text-align: center; margin-bottom: 28px; animation: fadeDown 0.5s ease 0.2s both; }
+        .form-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.45rem; font-weight: 800;
+            color: #fff; margin-bottom: 5px;
+        }
+        .form-subtitle { font-size: 0.84rem; color: var(--text-muted); line-height: 1.5; }
+
+        /* ─────────────────────────────────
+           ROLE SELECTOR
+        ───────────────────────────────── */
+        .role-wrap {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 26px;
+            animation: fadeDown 0.5s ease 0.3s both;
+        }
+
+        .role-btn {
+            position: relative;
+            padding: 14px 10px 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1.5px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            cursor: pointer;
+            text-align: center;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.88rem; font-weight: 600;
+            transition: color 0.3s;
+            overflow: hidden;
+            /* Isolate stacking context */
+            isolation: isolate;
+        }
+        /* Animated fill bg */
+        .role-btn::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(190,18,60,0.25), rgba(225,29,72,0.12));
+            border-radius: inherit;
+            opacity: 0;
+            transform: scale(0.85);
+            transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            z-index: 0;
+        }
+        /* Animated border glow */
+        .role-btn::after {
+            content: '';
+            position: absolute; inset: -1px;
+            border-radius: 15px;
+            border: 1.5px solid transparent;
+            background: linear-gradient(135deg, rgba(225,29,72,0.7), rgba(251,146,60,0.4)) border-box;
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.35s ease;
+            z-index: 0;
+        }
+
+        .role-btn.active::before { opacity: 1; transform: scale(1); }
+        .role-btn.active::after  { opacity: 1; }
+        .role-btn.active { color: #fff; }
+
+        /* Ripple on click */
+        .role-btn .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(225,29,72,0.3);
+            transform: scale(0);
+            animation: rippleOut 0.55s ease-out forwards;
+            pointer-events: none;
+            z-index: 1;
+        }
+        @keyframes rippleOut {
+            to { transform: scale(4); opacity: 0; }
+        }
+
+        .role-btn-content {
+            position: relative; z-index: 2;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 6px;
+        }
+        .role-icon {
+            font-size: 1.6rem;
+            display: block;
+            transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .role-btn.active .role-icon { transform: scale(1.2) translateY(-2px); }
+        .role-label { font-size: 0.85rem; font-weight: 700; }
+
+        /* Active check dot */
+        .role-check {
+            position: absolute; top: 8px; right: 8px;
+            width: 18px; height: 18px;
+            background: linear-gradient(135deg, var(--red-dark), var(--red));
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6rem; color: #fff;
+            opacity: 0;
+            transform: scale(0) rotate(-90deg);
+            transition: opacity 0.3s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+            z-index: 3;
+        }
+        .role-btn.active .role-check { opacity: 1; transform: scale(1) rotate(0deg); }
+
+        /* ─────────────────────────────────
+           FORM INPUTS
+        ───────────────────────────────── */
+        .form-body { animation: fadeDown 0.5s ease 0.4s both; }
+        .form-group { margin-bottom: 16px; }
+
+        .form-label {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.78rem; font-weight: 700; letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+        .lbl-dot {
+            width: 4px; height: 4px; border-radius: 50%;
+            background: var(--red); flex-shrink: 0;
+        }
+
+        .input-wrap { position: relative; }
+
+        .field-icon {
+            position: absolute; left: 14px; top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            pointer-events: none;
+            transition: color 0.25s;
+            display: flex;
+        }
+        .field-icon svg { width: 17px; height: 17px; }
+
+        .form-control {
+            width: 100%;
+            padding: 13px 16px 13px 44px;
+            background: var(--input-bg);
+            border: 1.5px solid rgba(255,255,255,0.09);
+            border-radius: 12px;
+            font-size: 0.95rem; font-family: inherit;
+            color: #fff;
+            transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+            outline: none;
+        }
+        .form-control::placeholder { color: var(--text-dim); }
+        .form-control:hover { border-color: rgba(255,255,255,0.18); }
+        .form-control:focus {
+            border-color: var(--red);
+            background: rgba(225,29,72,0.05);
+            box-shadow: 0 0 0 3px rgba(225,29,72,0.14), 0 0 20px rgba(225,29,72,0.07);
+        }
+        .input-wrap:focus-within .field-icon { color: var(--red); }
+
+        /* Password toggle */
+        .pw-eye {
+            position: absolute; right: 12px; top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .pw-eye:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        .pw-eye svg { width: 15px; height: 15px; }
+        .pw-field { padding-right: 50px !important; }
+
+        /* Inline error */
+        .field-err {
+            margin-top: 6px; font-size: 0.78rem;
+            color: #fca5a5;
+            display: none; align-items: center; gap: 5px;
+            animation: errFade 0.2s ease both;
+        }
+        @keyframes errFade { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+        .field-err.show { display: flex; }
+        .form-control.err { border-color: rgba(220,38,38,0.55); box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+
+        /* ─────────────────────────────────
+           SUBMIT BUTTON
+        ───────────────────────────────── */
+        .btn-login {
+            width: 100%; margin-top: 8px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, var(--red-deep), var(--red-dark) 40%, var(--red));
+            color: #fff; border: none;
+            border-radius: 13px;
+            font-size: 1rem; font-weight: 700; font-family: inherit;
+            cursor: pointer; letter-spacing: 0.3px;
+            box-shadow: 0 8px 24px rgba(225,29,72,0.38), inset 0 1px 0 rgba(255,255,255,0.13);
+            transition: transform 0.25s, box-shadow 0.25s;
+            position: relative; overflow: hidden;
+        }
+        /* Inner shimmer */
+        .btn-login::before {
+            content: '';
+            position: absolute; top:0; left:-100%; width:50%; height:100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.13), transparent);
+            transform: skewX(-18deg);
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 32px rgba(225,29,72,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+        }
+        .btn-login:hover::before { animation: shimmer 0.65s ease forwards; }
+        @keyframes shimmer { from{left:-100%} to{left:160%} }
+        .btn-login:active { transform: translateY(0); }
+        .btn-login:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        /* Loader */
+        .btn-dots { display:inline-flex; align-items:center; gap:5px; }
+        .btn-dot {
+            width:5px;height:5px;border-radius:50%;
+            background:rgba(255,255,255,0.85);
+            animation:dotBounce 0.9s ease-in-out infinite;
+        }
+        .btn-dot:nth-child(2){animation-delay:.12s}
+        .btn-dot:nth-child(3){animation-delay:.24s}
+        @keyframes dotBounce {
+            0%,100%{transform:translateY(0);opacity:.5}
+            50%{transform:translateY(-5px);opacity:1}
+        }
+
+        /* ─────────────────────────────────
+           DIVIDER & FOOTER
+        ───────────────────────────────── */
+        .divider {
+            display:flex;align-items:center;gap:12px;
+            margin:20px 0 16px; color:var(--text-dim); font-size:0.75rem;
+        }
+        .divider::before,.divider::after {
+            content:''; flex:1; height:1px;
+            background:rgba(255,255,255,0.07);
+        }
+
+        .card-footer { text-align:center; animation: fadeDown 0.5s ease 0.55s both; }
+        .card-footer p { font-size:0.82rem; color:var(--text-muted); margin-bottom:10px; }
+        .footer-row { display:flex; align-items:center; justify-content:center; gap:12px; }
+        .link-red {
+            color:var(--red); text-decoration:none;
+            font-size:0.82rem; font-weight:700;
+            transition:color 0.2s;
+        }
+        .link-red:hover { color:#fca5a5; }
+        .link-dim {
+            color:var(--text-dim); text-decoration:none;
+            font-size:0.8rem; transition:color 0.2s;
+        }
+        .link-dim:hover { color:rgba(255,255,255,0.5); }
+        .sep { color:rgba(255,255,255,0.1); font-size:0.7rem; }
+
+        /* Security note */
+        .security {
+            display:flex; align-items:center; justify-content:center;
+            gap:5px; margin-top:18px;
+            font-size:0.71rem; color:var(--text-dim);
+            font-family:'Inter',sans-serif;
+            animation: fadeDown 0.5s ease 0.6s both;
+        }
+        .security svg { width:12px; height:12px; opacity:0.4; }
+
+        /* ─────────────────────────────────
+           MOBILE
+        ───────────────────────────────── */
+        @media (max-width: 480px) {
+            .login-wrap { padding: 0; align-items: stretch; justify-content: flex-start; min-height: 100dvh; }
+            .login-card {
+                max-width: 100%; border-radius: 0;
+                padding: 40px 24px 36px;
+                min-height: 100dvh;
+                border-left: none; border-right: none; border-top: none;
+            }
+            .card-accent { display:block; }
+        }
+        @media (min-width: 481px) and (max-width: 768px) {
+            .login-card { padding: 40px 36px 36px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg">
+    <div class="bg-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="spark" style="left:7%;width:2px;height:2px;background:rgba(225,29,72,0.7);animation-duration:17s;animation-delay:0s;"></div>
+    <div class="spark" style="left:20%;width:3px;height:3px;background:rgba(225,29,72,0.45);animation-duration:23s;animation-delay:4s;"></div>
+    <div class="spark" style="left:40%;width:2px;height:2px;background:rgba(29,78,216,0.5);animation-duration:19s;animation-delay:8s;"></div>
+    <div class="spark" style="left:60%;width:2px;height:2px;background:rgba(225,29,72,0.4);animation-duration:15s;animation-delay:2s;"></div>
+    <div class="spark" style="left:78%;width:3px;height:3px;background:rgba(16,185,129,0.4);animation-duration:21s;animation-delay:6s;"></div>
+    <div class="spark" style="left:92%;width:2px;height:2px;background:rgba(225,29,72,0.55);animation-duration:18s;animation-delay:11s;"></div>
+</div>
+
+<div class="login-wrap">
+    <div class="login-card" id="loginCard">
+        <div class="card-accent"></div>
+
+        <!-- Logo -->
+        <a href="/" class="card-logo">
+            <div class="logo-icon-box">🩸</div>
+            <span class="logo-text-brand">Life<em>Line</em></span>
+        </a>
+
+        <!-- Title -->
+        <div class="form-heading">
+            <h1 class="form-title">স্বাগতম</h1>
+            <p class="form-subtitle">আপনার অ্যাকাউন্টে প্রবেশ করুন</p>
         </div>
 
-        <form id="loginForm" class="space-y-5">
-            <div>
-                <label class="block text-gray-700 font-semibold mb-1">অ্যাকাউন্টের ধরন</label>
-                <select id="userRole" class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-red-500 bg-gray-50">
-                    <option value="donor">রক্তদাতা (Donor)</option>
-                    <option value="hospital">হসপিটাল অ্যাডমিন</option>
-                    
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-gray-700 font-semibold mb-1">ইমেইল / ইউজারনেম</label>
-                <input type="text" id="username" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-red-500" placeholder="আপনার ইমেইল বা ইউজারনেম দিন">
-            </div>
-
-            <div>
-                <label class="block text-gray-700 font-semibold mb-1">পাসওয়ার্ড বা মাস্টার-কি</label>
-                <input type="password" id="password" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-red-500" placeholder="••••••••">
-            </div>
-
-            <button type="submit" class="w-full bg-red-600 text-white font-bold py-3 rounded hover:bg-red-700 transition shadow-lg text-lg">
-                লগিন করুন
+        <!-- Role Selector with animation -->
+        <div class="role-wrap" role="radiogroup" aria-label="অ্যাকাউন্টের ধরন">
+            <button type="button" class="role-btn active" id="roleDonor"
+                onclick="selectRole(this, 'donor')" aria-pressed="true">
+                <div class="role-check">✓</div>
+                <div class="role-btn-content">
+                    <span class="role-icon">❤️‍🩹</span>
+                    <span class="role-label">রক্তদাতা</span>
+                </div>
             </button>
-        </form>
-        
-        <div class="text-center mt-6">
-            <a href="/apply.html" class="text-sm text-red-600 hover:underline font-semibold">নতুন অ্যাকাউন্টের জন্য আবেদন করুন</a>
-            <span class="text-gray-300 mx-2">|</span>
-            <a href="/" class="text-sm text-blue-600 hover:underline">← হোমপেজে ফিরে যান</a>
+            <button type="button" class="role-btn" id="roleHospital"
+                onclick="selectRole(this, 'hospital')" aria-pressed="false">
+                <div class="role-check">✓</div>
+                <div class="role-btn-content">
+                    <span class="role-icon">🏥</span>
+                    <span class="role-label">হাসপাতাল</span>
+                </div>
+            </button>
+        </div>
+        <input type="hidden" id="userRole" value="donor">
+
+        <!-- Form -->
+        <div class="form-body">
+            <form id="loginForm" novalidate>
+
+                <!-- Email/Username -->
+                <div class="form-group">
+                    <label class="form-label" for="username">
+                        <span class="lbl-dot"></span> ইমেইল / ইউজারনেম
+                    </label>
+                    <div class="input-wrap">
+                        <input type="text" id="username" class="form-control"
+                            placeholder="example@email.com"
+                            required autocomplete="username" inputmode="email">
+                        <div class="field-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="field-err" id="errUsername">⚠ ইমেইল বা ইউজারনেম লিখুন</div>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                    <label class="form-label" for="password">
+                        <span class="lbl-dot"></span> পাসওয়ার্ড
+                    </label>
+                    <div class="input-wrap">
+                        <input type="password" id="password" class="form-control pw-field"
+                            placeholder="••••••••"
+                            required autocomplete="current-password">
+                        <div class="field-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </div>
+                        <button type="button" class="pw-eye" id="pwToggle" aria-label="পাসওয়ার্ড দেখুন">
+                            <svg id="iconEye" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            <svg id="iconEyeOff" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="field-err" id="errPassword">⚠ পাসওয়ার্ড লিখুন</div>
+                </div>
+
+                <button type="submit" class="btn-login" id="loginSubmitBtn">
+                    লগিন করুন →
+                </button>
+            </form>
+        </div>
+
+        <div class="divider"><span>অথবা</span></div>
+
+        <div class="card-footer">
+            <p>নতুন অ্যাকাউন্ট নেই?</p>
+            <div class="footer-row">
+                <a href="/apply.html" class="link-red">📝 নিবন্ধন করুন</a>
+                <span class="sep">●</span>
+                <a href="/" class="link-dim">← হোম</a>
+            </div>
+        </div>
+
+        <div class="security">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            SSL সুরক্ষিত — আপনার তথ্য সম্পূর্ণ নিরাপদ
         </div>
     </div>
+</div>
 
-    <script src="/js/notify.js"></script>
-    <script src="/js/login.js"></script>
+<script src="/js/notify.js"></script>
+<script src="/js/language.js"></script>
+<script src="/js/nav-mobile.js"></script>
+<script src="/js/login.js"></script>
+<script>
+(function () {
+
+    /* ════════════════════════════════
+       ROLE SELECTOR — animated
+    ════════════════════════════════ */
+    window.selectRole = function(btn, role) {
+        // Ripple effect
+        const rect = btn.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height) * 1.5;
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        ripple.style.cssText = `width:${size}px;height:${size}px;top:${rect.height/2 - size/2}px;left:${rect.width/2 - size/2}px`;
+        btn.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+
+        // Toggle active
+        document.querySelectorAll('.role-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        document.getElementById('userRole').value = role;
+
+        // Animate the form slightly on role change
+        const form = document.getElementById('loginCard');
+        form.style.transition = 'transform 0.25s cubic-bezier(0.34,1.56,0.64,1)';
+        form.style.transform = 'scale(0.995)';
+        setTimeout(() => { form.style.transform = 'scale(1)'; }, 200);
+    };
+
+    /* ════════════════════════════════
+       PASSWORD TOGGLE
+    ════════════════════════════════ */
+    const pwInput  = document.getElementById('password');
+    const pwToggle = document.getElementById('pwToggle');
+    const eyeOn    = document.getElementById('iconEye');
+    const eyeOff   = document.getElementById('iconEyeOff');
+
+    pwToggle.addEventListener('click', () => {
+        const show = pwInput.type === 'password';
+        pwInput.type = show ? 'text' : 'password';
+        eyeOn .style.display = show ? 'none' : '';
+        eyeOff.style.display = show ? ''     : 'none';
+        pwToggle.setAttribute('aria-label', show ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন');
+    });
+
+    /* ════════════════════════════════
+       INLINE VALIDATION
+    ════════════════════════════════ */
+    function markErr(fId, eId)  {
+        document.getElementById(fId).classList.add('err');
+        document.getElementById(eId).classList.add('show');
+    }
+    function clearErr(fId, eId) {
+        document.getElementById(fId).classList.remove('err');
+        document.getElementById(eId).classList.remove('show');
+    }
+
+    document.getElementById('username').addEventListener('input', function() {
+        if (this.value.trim()) clearErr('username', 'errUsername');
+    });
+    document.getElementById('password').addEventListener('input', function() {
+        if (this.value) clearErr('password', 'errPassword');
+    });
+
+    /* Pre-validate (capture phase — runs before login.js) */
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        let ok = true;
+        if (!document.getElementById('username').value.trim()) { markErr('username','errUsername'); ok = false; }
+        else clearErr('username','errUsername');
+        if (!document.getElementById('password').value) { markErr('password','errPassword'); ok = false; }
+        else clearErr('password','errPassword');
+        if (!ok) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            // Shake the card
+            const card = document.getElementById('loginCard');
+            card.classList.remove('shake');
+            void card.offsetWidth;
+            card.classList.add('shake');
+            setTimeout(() => card.classList.remove('shake'), 600);
+        }
+    }, true);
+
+})();
+</script>
 </body>
 </html>
