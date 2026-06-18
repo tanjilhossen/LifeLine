@@ -106,12 +106,81 @@ function findMatchedUpazila(district, fullText) {
 }
 
 /**
+ * Extract district and upazila from Mapbox geocoder results.
+ * Works for ALL 64 Bangladesh districts.
+ */
+function extractLocationFromMapboxResult(features) {
+    let district = '';
+    let upazila = '';
+
+    for (const feature of features) {
+        const placeType = (feature.place_type || []);
+        const text = (feature.text || '').trim();
+        const fullName = (feature.place_name || '').toLowerCase();
+        const ctx = feature.context || [];
+
+        // --- DISTRICT detection ---
+        // Mapbox "district" type = Bangladesh district level
+        if (!district && placeType.includes('district')) {
+            const candidate = findMatchedDistrict(text) || findMatchedDistrict(fullName);
+            if (candidate) district = candidate;
+        }
+        // Check context for district-level entries
+        if (!district) {
+            for (const c of ctx) {
+                const cTypes = (c.id || '').split('.');
+                const cText = (c.text || '').trim();
+                // Context entries with "district" in id or text matching
+                if (cTypes[0] === 'district' || cText.toLowerCase().includes('district') || cText.toLowerCase().includes('zila')) {
+                    const candidate = findMatchedDistrict(cText);
+                    if (candidate) { district = candidate; break; }
+                }
+                // Fall back: try matching any context text against known districts
+                if (!district) {
+                    const candidate = findMatchedDistrict(cText);
+                    if (candidate) { district = candidate; break; }
+                }
+            }
+        }
+        // Last resort: match full place_name against all known districts
+        if (!district) {
+            district = findMatchedDistrict(fullName);
+        }
+
+        // --- UPAZILA detection ---
+        // "place" and "locality" types in Bangladesh often correspond to upazila/thana
+        if (!upazila && district && (placeType.includes('place') || placeType.includes('locality') || placeType.includes('neighborhood'))) {
+            const candidate = findMatchedUpazila(district, text) || findMatchedUpazila(district, fullName);
+            if (candidate) upazila = candidate;
+        }
+        // Check context for upazila-level entries
+        if (!upazila && district) {
+            for (const c of ctx) {
+                const cText = (c.text || '').trim();
+                const candidate = findMatchedUpazila(district, cText);
+                if (candidate) { upazila = candidate; break; }
+            }
+        }
+        // Last resort: search whole place_name for upazila match
+        if (!upazila && district) {
+            upazila = findMatchedUpazila(district, fullName);
+        }
+
+        if (district && upazila) break;
+    }
+
+    return { district, upazila };
+}
+
+/**
  * Reverse geocode a lat/lng using Mapbox API
  * Returns { district, upazila, displayName }
+ * Works for ALL 64 Bangladesh districts.
  */
 async function mapboxReverseGeocode(lat, lng) {
     try {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&country=BD&language=en&types=district,locality,place,neighborhood`;
+        // Request multiple feature types for comprehensive Bangladesh coverage
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&country=BD&language=en&types=district,locality,place,neighborhood,poi`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -122,30 +191,29 @@ async function mapboxReverseGeocode(lat, lng) {
         if (data.features && data.features.length > 0) {
             displayName = data.features[0].place_name || displayName;
 
-            // Walk through all features to find district & upazila
-            for (const feature of data.features) {
-                const ctx = feature.context || [];
-                const placeText = (feature.text || '').trim();
-                const fullName = (feature.place_name || '').toLowerCase();
+            // Use the improved multi-district extractor
+            const extracted = extractLocationFromMapboxResult(data.features);
+            district = extracted.district;
+            upazila = extracted.upazila;
 
-                // Try matching district
-                if (!district) {
+            // Fallback to legacy matching if above didn't find district
+            if (!district) {
+                for (const feature of data.features) {
+                    const placeText = (feature.text || '').trim();
+                    const fullName = (feature.place_name || '').toLowerCase();
                     district = findMatchedDistrict(fullName) || findMatchedDistrict(placeText);
-                }
-
-                if (!district) {
-                    for (const c of ctx) {
-                        const cText = (c.text || '').trim();
-                        district = findMatchedDistrict(cText);
+                    if (district) break;
+                    for (const c of (feature.context || [])) {
+                        district = findMatchedDistrict((c.text || '').trim());
                         if (district) break;
                     }
+                    if (district) break;
                 }
             }
 
-            // Try matching upazila
-            if (district) {
-                const fullText = data.features[0].place_name.toLowerCase();
-                upazila = findMatchedUpazila(district, fullText);
+            // Fallback upazila match using full first place_name
+            if (district && !upazila) {
+                upazila = findMatchedUpazila(district, data.features[0].place_name.toLowerCase());
             }
         }
 
@@ -157,7 +225,9 @@ async function mapboxReverseGeocode(lat, lng) {
 }
 
 /**
- * Auto-fill district/upazila selects from geocode result
+ * Auto-fill district/upazila selects from geocode result.
+ * Also fires 'change' events on both selects so dependent dropdowns
+ * (e.g., medical/hospital name dropdown from FIX 2) update automatically.
  * @param {string} districtSelectId
  * @param {string} upazilaSelectId
  * @param {object} geocodeResult - { district, upazila }
@@ -174,20 +244,22 @@ function autoFillFromGeocode(districtSelectId, upazilaSelectId, geocodeResult) {
         populateDivisions(districtSelectId);
     }
 
-    // Set district
+    // Set district and fire change (triggers upazila population + any other listeners)
     distSelect.value = geocodeResult.district;
     distSelect.dispatchEvent(new Event('change'));
 
-    // Populate upazilas first
+    // Populate upazilas explicitly (in case the change event above didn't trigger it)
     if (typeof populateUpazilas === 'function') {
         populateUpazilas(districtSelectId, upazilaSelectId);
     }
 
-    // Set upazila after a short tick
+    // Set upazila after a short tick, then fire change so medical dropdown updates
     if (geocodeResult.upazila && upzSelect) {
         setTimeout(() => {
             upzSelect.value = geocodeResult.upazila;
-        }, 50);
+            // Fire 'change' so any dependent dropdowns (hospital list, etc.) update
+            upzSelect.dispatchEvent(new Event('change'));
+        }, 80);
     }
 }
 

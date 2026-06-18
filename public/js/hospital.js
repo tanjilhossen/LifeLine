@@ -292,11 +292,16 @@ function initMap() {
                     if (btn) btn.innerText = originalText;
                 });
             },
-            () => {
-                showPopup('Location permission denied.', 'warning');
+            (error) => {
+                alert('লোকেশন অ্যাক্সেস অস্বীকার বা পাওয়া যায়নি। অনুগ্রহ করে ম্যাপে ম্যানুয়ালি পিন করুন।');
+                console.error('Geolocation error:', error);
                 if (btn) btn.innerText = originalText;
             },
-            { enableHighAccuracy: true }
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
         );
     }
 

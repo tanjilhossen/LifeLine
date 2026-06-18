@@ -9,8 +9,7 @@ function escapeHtml(value) {
     ));
 }
 
-const params      = new URLSearchParams(window.location.search);
-const token       = params.get('token') || '';
+let   token            = '';
 let   countdownTimer   = null;
 let   remainingSeconds = 0;
 let   pollInterval     = null;
@@ -268,6 +267,162 @@ function stopPolling() {
     if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
-/* ── Boot ────────────────────────────────────────────── */
-loadStatus();
-pollInterval = setInterval(loadStatus, 5000);
+/* ── Search & View Toggles ───────────────────────────── */
+function initViews() {
+    const params = new URLSearchParams(window.location.search);
+    token = params.get('token') || '';
+    const phoneParam = params.get('phone') || '';
+
+    const searchContainer = document.getElementById('searchContainer');
+    const trackingContainer = document.getElementById('trackingContainer');
+    const navSearchBtn = document.getElementById('navSearchBtn');
+
+    if (token) {
+        searchContainer.classList.add('hidden');
+        trackingContainer.classList.remove('hidden');
+        navSearchBtn.classList.remove('hidden');
+        
+        loadStatus();
+        if (!pollInterval) {
+            pollCount = 0;
+            pollInterval = setInterval(loadStatus, 5000);
+        }
+    } else {
+        stopPolling();
+        trackingContainer.classList.add('hidden');
+        searchContainer.classList.remove('hidden');
+        navSearchBtn.classList.add('hidden');
+
+        if (phoneParam) {
+            const phoneInput = document.getElementById('searchPhoneInput');
+            if (phoneInput && !phoneInput.value) {
+                phoneInput.value = phoneParam;
+                searchRequests();
+            }
+        }
+    }
+}
+
+async function searchRequests() {
+    const phoneInput = document.getElementById('searchPhoneInput');
+    const searchError = document.getElementById('searchError');
+    const myRequestsWrapper = document.getElementById('myRequestsWrapper');
+    const myRequestsList = document.getElementById('myRequestsList');
+    const submitBtn = document.getElementById('searchSubmitBtn');
+
+    const phone = (phoneInput.value || '').trim();
+    if (!phone) {
+        showSearchError('একটি মোবাইল নম্বর টাইপ করুন।');
+        return;
+    }
+
+    searchError.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'খোঁজা হচ্ছে...';
+
+    try {
+        const res = await fetch(`/api/my-requests?phone=${encodeURIComponent(phone)}`);
+        const result = await res.json();
+
+        if (!result.success) {
+            showSearchError(result.message);
+            myRequestsWrapper.classList.add('hidden');
+            return;
+        }
+
+        const requests = result.data || [];
+        if (requests.length === 0) {
+            showSearchError('এই মোবাইল নম্বরের কোনো রক্তের আবেদন পাওয়া যায়নি।');
+            myRequestsWrapper.classList.add('hidden');
+            return;
+        }
+
+        renderRequestsList(requests);
+    } catch (err) {
+        console.error('Search request failed:', err);
+        showSearchError('সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'অনুসন্ধান';
+    }
+}
+
+function showSearchError(msg) {
+    const searchError = document.getElementById('searchError');
+    searchError.textContent = '❌ ' + msg;
+    searchError.classList.remove('hidden');
+}
+
+function renderRequestsList(requests) {
+    const myRequestsWrapper = document.getElementById('myRequestsWrapper');
+    const myRequestsList = document.getElementById('myRequestsList');
+    
+    myRequestsList.innerHTML = requests.map(req => {
+        let badgeCls = 'badge-queued';
+        let badgeLabel = req.display_status;
+        
+        if (req.display_status === 'Active') {
+            badgeCls = 'badge-active';
+            badgeLabel = '🔴 Active';
+        } else if (req.display_status === 'Completed') {
+            badgeCls = 'badge-accepted';
+            badgeLabel = '✅ Completed';
+        } else if (req.display_status === 'Expired') {
+            badgeCls = 'badge-rejected';
+            badgeLabel = '⏰ Expired';
+        } else if (req.display_status === 'Cancelled') {
+            badgeCls = 'badge-rejected';
+            badgeLabel = '❌ Cancelled';
+        }
+
+        return `
+            <div class="request-item-card" onclick="trackRequest('${escapeHtml(req.tracking_token)}')">
+                <div class="request-header">
+                    <span class="blood-tag">${escapeHtml(req.blood_group)}</span>
+                    <span class="badge ${badgeCls}">${badgeLabel}</span>
+                </div>
+                <div class="request-body">
+                    <div style="font-weight: 700; color: var(--slate-900); margin-bottom: 4px;">🏥 ${escapeHtml(req.hospital_name)}</div>
+                    <div class="muted small">📍 লোকেশন: ${escapeHtml(req.location)}</div>
+                    <div class="muted small">⏰ প্রয়োজন: ${escapeHtml(req.needed_time)}</div>
+                </div>
+                <div class="request-footer">
+                    <span>আবেদন: ${formatDate(req.created_at)}</span>
+                    <span style="color: var(--blue); font-weight: 800;">ট্র্যাক করুন ➔</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    myRequestsWrapper.classList.remove('hidden');
+}
+
+function trackRequest(trackingToken) {
+    const newUrl = `${window.location.pathname}?token=${encodeURIComponent(trackingToken)}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+    initViews();
+}
+
+// Expose trackRequest globally for onclick attributes
+window.trackRequest = trackRequest;
+
+/* ── Boot / Setup ────────────────────────────────────── */
+document.getElementById('searchSubmitBtn').addEventListener('click', searchRequests);
+document.getElementById('searchPhoneInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchRequests();
+});
+
+const navSearchBtn = document.getElementById('navSearchBtn');
+if (navSearchBtn) {
+    navSearchBtn.addEventListener('click', () => {
+        const newUrl = window.location.pathname;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+        document.getElementById('searchPhoneInput').value = '';
+        document.getElementById('searchError').classList.add('hidden');
+        document.getElementById('myRequestsWrapper').classList.add('hidden');
+        initViews();
+    });
+}
+
+initViews();
+window.addEventListener('popstate', initViews);

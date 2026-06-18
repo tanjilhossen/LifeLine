@@ -395,19 +395,21 @@ async function loadRequests() {
             }
 
 
-            // সর্ট: Pending → Accepted (৫ ঘন্টার মধ্যে) → পুরনো Accepted → Rejected
+            // সর্ট: Pending → Accepted (৫ ঘন্টার মধ্যে) → Completed by other → পুরনো Accepted → Rejected
             const now = Date.now();
             const FIVE_HOURS = 5 * 60 * 60 * 1000;
 
             reqs.sort((a, b) => {
                 function getPriority(req) {
-                    if (req.response_status === 'Pending') return 1;
+                    const reqOverallStatus = req.status || 'Pending';
+                    if (req.response_status === 'Pending' && reqOverallStatus === 'Pending') return 1;
                     if (req.response_status === 'Accepted') {
                         const age = now - new Date(req.responded_at || req.notified_at || req.created_at).getTime();
-                        return age <= FIVE_HOURS ? 2 : 3;
+                        return age <= FIVE_HOURS ? 2 : 4;
                     }
-                    if (req.response_status === 'Rejected') return 4;
-                    return 5;
+                    if (req.response_status === 'Pending' && reqOverallStatus === 'Completed') return 3;
+                    if (req.response_status === 'Rejected') return 5;
+                    return 6;
                 }
                 const pA = getPriority(a);
                 const pB = getPriority(b);
@@ -421,7 +423,9 @@ async function loadRequests() {
             reqs.forEach(req => {
                 const date = new Date(req.created_at).toLocaleString('bn-BD');
                 const timerStart = req.notified_at || req.created_at;
-                const isPending  = req.response_status === 'Pending';
+                const reqOverallStatus = req.status || 'Pending';
+                const isPending  = req.response_status === 'Pending' && reqOverallStatus === 'Pending';
+                const isCompletedByOther = req.response_status === 'Pending' && reqOverallStatus === 'Completed';
                 const isAccepted = req.response_status === 'Accepted';
                 const isRejected = req.response_status === 'Rejected';
 
@@ -429,6 +433,7 @@ async function loadRequests() {
                 // Status badge
                 let statusBadge = '';
                 if (isPending)  statusBadge = `<span class="status-badge pending">⏳ অপেক্ষমান</span>`;
+                if (isCompletedByOther) statusBadge = `<span class="status-badge completed" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80;">✅ blood finded done</span>`;
                 if (isAccepted) statusBadge = `<span class="status-badge accepted">✅ গৃহীত</span>`;
                 if (isRejected) statusBadge = `<span class="status-badge rejected">❌ বাতিল</span>`;
 
@@ -451,6 +456,15 @@ async function loadRequests() {
                             <button onclick="handleRequest(${req.request_id}, 'Accepted')" class="btn-accept">✅ গ্রহণ করুন</button>
                             <button onclick="handleRequest(${req.request_id}, 'Rejected')" class="btn-reject">❌ বাতিল</button>
                         </div>`;
+                } else if (isCompletedByOther) {
+                    actionsHtml = `
+                        <div class="contact-box" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.2);margin-top:12px;">
+                            <span style="font-size:1.3rem">🩸</span>
+                            <div>
+                                <div style="color:rgba(255,255,255,.45);font-size:.78rem;font-weight:600;">রক্তদাতা পাওয়া গেছে</div>
+                                <div style="color:#60a5fa;font-weight:700;font-size:.9rem;">blood finded done</div>
+                            </div>
+                        </div>`;
                 } else if (isAccepted && req.contact_number) {
                     actionsHtml = `
                         <div class="contact-box">
@@ -463,7 +477,7 @@ async function loadRequests() {
                 }
 
                 // Card class
-                const cardClass = isPending ? 'pending' : isAccepted ? 'accepted' : isRejected ? 'rejected' : 'noresponse';
+                const cardClass = isPending ? 'pending' : (isAccepted || isCompletedByOther) ? 'accepted' : isRejected ? 'rejected' : 'noresponse';
 
 
                 list.innerHTML += `
@@ -483,7 +497,7 @@ async function loadRequests() {
                         </div>
                         <div class="req-info-row">
                             <span class="icon">⏰</span>
-                            <div><div class="label">সময়</div><div class="val">${escapeHtml(req.needed_time)}</div></div>
+                            <div><div class="label">সময়</div><div class="val">${escapeHtml(req.needed_time)}</div></div>
                         </div>
                         <div class="req-info-row">
                             <span class="icon">🤒</span>

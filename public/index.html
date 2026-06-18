@@ -360,6 +360,144 @@
             .hero-title { font-size: 1.9rem; }
             .nav-btn { padding: 8px 16px; font-size: 0.82rem; }
         }
+
+        /* ── TRACK REQUEST WIDGET ── */
+        .track-widget-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 36px;
+            animation: fadeInUp 0.9s ease 0.38s both;
+        }
+
+        .track-widget-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 24px 32px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .track-widget-card:hover {
+            border-color: rgba(225, 29, 72, 0.3);
+            box-shadow: 0 12px 40px rgba(225, 29, 72, 0.1);
+        }
+
+        .track-widget-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .track-widget-icon {
+            font-size: 2.2rem;
+            animation: pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .track-widget-title-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .track-widget-title {
+            font-family: 'Hind Siliguri', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .track-widget-subtitle {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .track-widget-form {
+            display: flex;
+            gap: 10px;
+            min-width: 340px;
+        }
+
+        .track-widget-form input {
+            flex: 1;
+            background: rgba(6, 11, 24, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .track-widget-form input:focus {
+            border-color: var(--red);
+            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.25);
+        }
+
+        .track-widget-btn {
+            background: linear-gradient(135deg, var(--red-dark), var(--red));
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            font-family: 'Hind Siliguri', sans-serif;
+            box-shadow: 0 4px 14px var(--red-glow);
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+        }
+
+        .track-widget-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(225, 29, 72, 0.5);
+        }
+
+        .track-error {
+            color: #fca5a5;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            text-align: right;
+            font-weight: 600;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        @media (max-width: 900px) {
+            .track-widget-card {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 20px;
+                gap: 16px;
+            }
+            .track-widget-form {
+                min-width: 100%;
+            }
+            .track-widget-header {
+                text-align: center;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .track-error {
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -465,6 +603,24 @@
 
     </div>
 
+    <!-- TRACK REQUEST WIDGET -->
+    <div class="track-widget-container">
+        <div class="track-widget-card">
+            <div class="track-widget-header">
+                <span class="track-widget-icon">🔴</span>
+                <div class="track-widget-title-wrap">
+                    <h3 class="track-widget-title" data-bn="রক্তের রিকোয়েস্ট লাইভ ট্র্যাক করুন" data-en="Track Blood Request Live">রক্তের রিকোয়েস্ট লাইভ ট্র্যাক করুন</h3>
+                    <p class="track-widget-subtitle" data-bn="আপনার মোবাইল নম্বর দিয়ে আবেদনের বর্তমান অবস্থা ও ডোনার কিউ দেখুন" data-en="Enter your mobile number to view request status and donor queue">আপনার মোবাইল নম্বর দিয়ে আবেদনের বর্তমান অবস্থা ও ডোনার কিউ দেখুন</p>
+                </div>
+            </div>
+            <div class="track-widget-form">
+                <input type="tel" id="homeTrackPhone" placeholder="যেমন: 017XXXXXXXX" maxlength="11" />
+                <button id="btnHomeTrack" class="track-widget-btn" data-bn="আবেদন ট্র্যাক করুন" data-en="Track Request">আবেদন ট্র্যাক করুন</button>
+            </div>
+        </div>
+        <div id="homeTrackError" class="track-error hidden"></div>
+    </div>
+
     <!-- Quick Links -->
     <div class="quick-links">
         <a href="/apply.html" class="quick-link">📝 ডোনার হিসেবে নিবন্ধন করুন</a>
@@ -539,6 +695,39 @@
             el.textContent = cur + suffix;
             if (cur >= target) clearInterval(t);
         }, 30);
+    }
+
+    function handleHomeTrack() {
+        const input = document.getElementById('homeTrackPhone');
+        const phone = (input.value || '').trim();
+        const errEl = document.getElementById('homeTrackError');
+        
+        if (!phone) {
+            errEl.textContent = '❌ মোবাইল নম্বর টাইপ করুন।';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        
+        const clean = phone.replace(/\D/g, '');
+        if (clean.length < 10) {
+            errEl.textContent = '❌ একটি সঠিক মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)।';
+            errEl.classList.remove('hidden');
+            return;
+        }
+        
+        errEl.classList.add('hidden');
+        window.location.href = `/request-status.html?phone=${encodeURIComponent(phone)}`;
+    }
+
+    const btnHomeTrack = document.getElementById('btnHomeTrack');
+    if (btnHomeTrack) {
+        btnHomeTrack.addEventListener('click', handleHomeTrack);
+    }
+    const homeTrackPhone = document.getElementById('homeTrackPhone');
+    if (homeTrackPhone) {
+        homeTrackPhone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleHomeTrack();
+        });
     }
 
     loadStats();

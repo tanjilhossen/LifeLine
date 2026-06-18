@@ -127,6 +127,20 @@ function buildDonorPublicRow(row) {
 }
 
 function buildQueueState(request, donors) {
+    const now = new Date();
+    const refDate = request.needed_time_raw ? new Date(request.needed_time_raw) : new Date(request.created_at);
+    const isPast24Hours = refDate && (now.getTime() - refDate.getTime() > 24 * 60 * 60 * 1000);
+
+    if (request.status === 'Cancelled' || isPast24Hours) {
+        return {
+            status: 'exhausted',
+            label: '⏰ সময় শেষ / বাতিল',
+            message: isPast24Hours 
+                ? 'এই রক্তের রিকোয়েস্টের সময় পার হয়ে গেছে।' 
+                : 'এই রক্তের রিকোয়েস্টটি বন্ধ বা বাতিল করা হয়েছে।'
+        };
+    }
+
     // ✅ Completed — someone accepted
     if (request.status === 'Completed' || donors.some(d => d.responseStatus === 'Accepted')) {
         const acceptedDonor = donors.find(d => d.responseStatus === 'Accepted');
@@ -139,15 +153,24 @@ function buildQueueState(request, donors) {
         };
     }
 
-    // 🔴 Active — request sent to one donor, waiting for response
-    const activeDonor = donors.find(d => d.responseStatus === 'Pending');
-    if (activeDonor) {
-        const dist = activeDonor.distanceKm != null ? ` (${Number(activeDonor.distanceKm).toFixed(1)} km দূরে)` : '';
-        return {
-            status: 'active',
-            label: '🔴 Active',
-            message: `${activeDonor.name}${dist} — এর কাছে request গেছে। সাড়া না দিলে বা reject করলে system পরবর্তী নিকটতম donor-এ যাবে।`
-        };
+    // 🔴 Active — request sent to one or more donors, waiting for response
+    const activeDonors = donors.filter(d => d.responseStatus === 'Pending');
+    if (activeDonors.length > 0) {
+        if (activeDonors.length === 1) {
+            const activeDonor = activeDonors[0];
+            const dist = activeDonor.distanceKm != null ? ` (${Number(activeDonor.distanceKm).toFixed(1)} km দূরে)` : '';
+            return {
+                status: 'active',
+                label: '🔴 Active',
+                message: `${activeDonor.name}${dist} — এর কাছে request গেছে। সাড়া না দিলে বা reject করলে system পরবর্তী নিকটতম donor-এ যাবে।`
+            };
+        } else {
+            return {
+                status: 'active',
+                label: '🔴 Active',
+                message: `${activeDonors.length} জন ডোনারের কাছে request পাঠানো হয়েছে। কেউ সাড়া না দিলে বা reject করলে system পরবর্তী নিকটতম donor-এ যাবে।`
+            };
+        }
     }
 
     // ⏳ Queued — more donors waiting in line
@@ -296,6 +319,18 @@ async function activateNextDonor(requestId) {
         if (requests.length === 0) return { activated: false, reason: 'not_found' };
 
         const request = requests[0];
+
+        // Auto-expire request if it is more than 24 hours past needed_time_raw (or created_at if needed_time_raw is missing)
+        if (request.status === 'Pending') {
+            const now = new Date();
+            const refDate = request.needed_time_raw ? new Date(request.needed_time_raw) : new Date(request.created_at);
+            if (now.getTime() - refDate.getTime() > 24 * 60 * 60 * 1000) {
+                await dbQuery('UPDATE blood_requests SET status = "Cancelled" WHERE id = ?', [requestId]);
+                request.status = 'Cancelled';
+                console.log(`⏳ Request #${requestId} auto-expired (24 hours past reference time).`);
+            }
+        }
+
         if (request.status !== 'Pending') return { activated: false, reason: 'not_pending' };
 
         // Check if already accepted → mark Completed
@@ -308,7 +343,29 @@ async function activateNextDonor(requestId) {
             return { activated: false, reason: 'completed' };
         }
 
-        // Check if there's a currently active (unexpired) donor notification
+        // Calculate hours remaining to determine parallel target
+        const now = new Date();
+        const needed = request.needed_time_raw ? new Date(request.needed_time_raw) : null;
+        let hoursRemaining = 999; // Default (fallback to sequential 1-by-1)
+        if (needed) {
+            const diffMs = needed.getTime() - now.getTime();
+            hoursRemaining = diffMs / (1000 * 60 * 60);
+        }
+
+        let targetParallelCount = 1;
+        if (hoursRemaining <= 1) {
+            targetParallelCount = 9999; // All matching donors
+        } else if (hoursRemaining <= 2) {
+            targetParallelCount = 10;
+        } else if (hoursRemaining <= 3) {
+            targetParallelCount = 5;
+        } else if (hoursRemaining <= 4) {
+            targetParallelCount = 3;
+        } else if (hoursRemaining <= 5) {
+            targetParallelCount = 2;
+        }
+
+        // Count how many donor requests are currently active and unexpired
         const activeRows = await dbQuery(`
             SELECT dr.id, dr.notified_at
             FROM donor_requests dr
@@ -317,18 +374,27 @@ async function activateNextDonor(requestId) {
               AND dr.notified_at IS NOT NULL
               AND DATE_ADD(dr.notified_at, INTERVAL ? MINUTE) > NOW()
             ORDER BY dr.notify_order ASC
-            LIMIT 1
         `, [requestId, REQUEST_EXPIRY_MINUTES]);
 
-        if (activeRows.length > 0) {
+        const activeCount = activeRows.length;
+
+        // If we already have enough active unexpired notifications, do nothing
+        if (activeCount >= targetParallelCount) {
+            // Update expires_at to match the latest notified_at
+            const latestNotifiedAt = activeRows.reduce((latest, row) => {
+                return new Date(row.notified_at) > new Date(latest) ? row.notified_at : latest;
+            }, activeRows[0].notified_at);
             await dbQuery(
                 'UPDATE blood_requests SET expires_at = DATE_ADD(?, INTERVAL ? MINUTE) WHERE id = ?',
-                [activeRows[0].notified_at, REQUEST_EXPIRY_MINUTES, requestId]
+                [latestNotifiedAt, REQUEST_EXPIRY_MINUTES, requestId]
             );
             return { activated: false, reason: 'waiting' };
         }
 
-        // Pick next queued donor who is still Available (never notified yet)
+        // Find how many new donors we need to activate
+        const notifyLimit = targetParallelCount - activeCount;
+
+        // Pick next queued donors who are still Available (never notified yet)
         const nextRows = await dbQuery(`
             SELECT
                 dr.id AS donor_request_id,
@@ -340,21 +406,37 @@ async function activateNextDonor(requestId) {
               AND dr.notified_at IS NULL
               AND d.status = 'Available'
             ORDER BY dr.notify_order ASC, dr.id ASC
-            LIMIT 1
-        `, [requestId]);
+            LIMIT ?
+        `, [requestId, notifyLimit]);
 
         if (nextRows.length === 0) {
-            console.log(`ℹ️ Request #${requestId}: Queue exhausted. All district donors have been contacted.`);
-            return { activated: false, reason: 'exhausted' };
+            if (activeCount > 0) {
+                // If some are still active, update expires_at and wait
+                const latestNotifiedAt = activeRows.reduce((latest, row) => {
+                    return new Date(row.notified_at) > new Date(latest) ? row.notified_at : latest;
+                }, activeRows[0].notified_at);
+                await dbQuery(
+                    'UPDATE blood_requests SET expires_at = DATE_ADD(?, INTERVAL ? MINUTE) WHERE id = ?',
+                    [latestNotifiedAt, REQUEST_EXPIRY_MINUTES, requestId]
+                );
+                return { activated: false, reason: 'waiting' };
+            } else {
+                console.log(`ℹ️ Request #${requestId}: Queue exhausted. All district donors have been contacted.`);
+                return { activated: false, reason: 'exhausted' };
+            }
         }
 
-        const donor = nextRows[0];
-        await dbQuery('UPDATE donor_requests SET notified_at = NOW() WHERE id = ?', [donor.donor_request_id]);
+        // Activate the next batch of donors in parallel
+        for (const donor of nextRows) {
+            await dbQuery('UPDATE donor_requests SET notified_at = NOW() WHERE id = ?', [donor.donor_request_id]);
+            await sendRequestToDonor(donor, request);
+            console.log(`✅ Request #${requestId}: Activated donor ${donor.name} (#${donor.id}) in parallel`);
+        }
+
         await dbQuery('UPDATE blood_requests SET expires_at = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?',
             [REQUEST_EXPIRY_MINUTES, requestId]);
-        await sendRequestToDonor(donor, request);
-        console.log(`✅ Request #${requestId}: Activated donor ${donor.name} (#${donor.id}) — nearest first`);
-        return { activated: true, donor };
+
+        return { activated: true, count: nextRows.length };
     } finally {
         _activateLocks.delete(requestId);
     }
@@ -411,6 +493,7 @@ function setupSchema() {
             longitude DECIMAL(10, 7) NULL,
             hospital_name VARCHAR(255) NOT NULL,
             needed_time VARCHAR(150) NOT NULL,
+            needed_time_raw DATETIME NULL,
             patient_disease VARCHAR(255) NOT NULL,
             contact_number VARCHAR(30) NOT NULL,
             tracking_token VARCHAR(80) NULL UNIQUE,
@@ -461,6 +544,7 @@ function setupSchema() {
         "ALTER TABLE blood_requests ADD COLUMN longitude DECIMAL(10, 7) NULL AFTER latitude",
         "ALTER TABLE blood_requests ADD COLUMN tracking_token VARCHAR(80) NULL UNIQUE AFTER contact_number",
         "ALTER TABLE blood_requests ADD COLUMN expires_at DATETIME NULL AFTER tracking_token",
+        "ALTER TABLE blood_requests ADD COLUMN needed_time_raw DATETIME NULL AFTER needed_time",
         "ALTER TABLE donor_requests ADD COLUMN notify_order INT NULL AFTER status",
         "ALTER TABLE donor_requests ADD COLUMN distance_km DECIMAL(8, 2) NULL AFTER notify_order",
         "ALTER TABLE donor_requests ADD COLUMN notified_at TIMESTAMP NULL AFTER distance_km",
@@ -607,6 +691,7 @@ app.post('/api/emergency', (req, res) => {
     const longitude = toRequiredCoordinate(req.body.longitude);
     const hospitalName = normalizeText(req.body.hospitalName);
     const neededTime = normalizeText(req.body.neededTime);
+    const neededTimeRaw = toNullableText(req.body.neededTimeRaw);
     const patientDisease = normalizeText(req.body.patientDisease);
     const contactNumber = normalizeText(req.body.contactNumber);
 
@@ -640,15 +725,15 @@ app.post('/api/emergency', (req, res) => {
             const insertRequestQuery = `
                 INSERT INTO blood_requests (
                     blood_group, location, district, upazila, latitude, longitude,
-                    hospital_name, needed_time, patient_disease, contact_number,
+                    hospital_name, needed_time, needed_time_raw, patient_disease, contact_number,
                     tracking_token
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             db.query(insertRequestQuery, [
                 bloodGroup, location, district, upazila || null, latitude, longitude,
-                hospitalName, neededTime, patientDisease, cleanPhone,
+                hospitalName, neededTime, neededTimeRaw, patientDisease, cleanPhone,
                 trackingToken
             ], async (insertErr, result) => {
                 if (insertErr) return res.status(500).json({ success: false, message: 'রিকোয়েস্ট সেভ করতে সমস্যা হয়েছে।' });
@@ -701,6 +786,19 @@ app.get('/api/request-status', async (req, res) => {
     }
 
     try {
+        // Auto-expire request if it is more than 24 hours past needed_time_raw (or created_at if needed_time_raw is missing)
+        await dbQuery(`
+            UPDATE blood_requests 
+            SET status = 'Cancelled' 
+            WHERE tracking_token = ? 
+              AND status = 'Pending' 
+              AND (
+                (needed_time_raw IS NOT NULL AND DATE_ADD(needed_time_raw, INTERVAL 24 HOUR) <= NOW())
+                OR
+                (needed_time_raw IS NULL AND DATE_ADD(created_at, INTERVAL 24 HOUR) <= NOW())
+              )
+        `, [token]);
+
         const requestForQueue = await dbQuery('SELECT id FROM blood_requests WHERE tracking_token = ? LIMIT 1', [token]);
         if (requestForQueue.length > 0) {
             await activateNextDonor(requestForQueue[0].id);
@@ -712,7 +810,7 @@ app.get('/api/request-status', async (req, res) => {
     const requestQuery = `
         SELECT
             id, blood_group, location, district, upazila, latitude, longitude,
-            hospital_name, needed_time, patient_disease, contact_number,
+            hospital_name, needed_time, needed_time_raw, patient_disease, contact_number,
             status, created_at, expires_at,
             GREATEST(TIMESTAMPDIFF(SECOND, NOW(), expires_at), 0) AS remaining_seconds,
             CASE WHEN expires_at IS NOT NULL AND expires_at <= NOW() THEN 1 ELSE 0 END AS is_expired
@@ -790,6 +888,51 @@ app.get('/api/request-status', async (req, res) => {
                 }
             });
         });
+    });
+});
+
+// --- [পাবলিক] মোবাইল নাম্বার দিয়ে রক্তের রিকোয়েস্ট খোঁজার API ---
+app.get('/api/my-requests', (req, res) => {
+    const rawPhone = req.query.phone;
+    const cleanPhone = validateAndNormalizeBDPhone(rawPhone);
+    if (!cleanPhone) {
+        return res.status(400).json({ success: false, message: 'একটি সঠিক বাংলাদেশী মোবাইল নাম্বার দিন (যেমন: 017XXXXXXXX)।' });
+    }
+
+    // Auto-expire requests that are 24 hours past their needed_time_raw (or created_at if needed_time_raw is missing)
+    dbQuery(`
+        UPDATE blood_requests 
+        SET status = 'Cancelled' 
+        WHERE contact_number = ? 
+          AND status = 'Pending' 
+          AND (
+            (needed_time_raw IS NOT NULL AND DATE_ADD(needed_time_raw, INTERVAL 24 HOUR) <= NOW())
+            OR
+            (needed_time_raw IS NULL AND DATE_ADD(created_at, INTERVAL 24 HOUR) <= NOW())
+          )
+    `, [cleanPhone]).catch(err => console.error('Error auto-expiring in my-requests:', err));
+
+    const query = `
+        SELECT id, blood_group, location, hospital_name, needed_time, needed_time_raw, 
+               patient_disease, contact_number, tracking_token, status, created_at,
+               CASE 
+                   WHEN status = 'Completed' THEN 'Completed'
+                   WHEN status = 'Cancelled' THEN 'Cancelled'
+                   WHEN (needed_time_raw IS NOT NULL AND DATE_ADD(needed_time_raw, INTERVAL 24 HOUR) <= NOW()) OR
+                        (needed_time_raw IS NULL AND DATE_ADD(created_at, INTERVAL 24 HOUR) <= NOW()) THEN 'Expired'
+                   ELSE 'Active'
+               END AS display_status
+        FROM blood_requests
+        WHERE contact_number = ?
+        ORDER BY created_at DESC
+    `;
+
+    db.query(query, [cleanPhone], (err, results) => {
+        if (err) {
+            console.error('Error fetching my-requests:', err);
+            return res.status(500).json({ success: false, message: 'রিকোয়েস্টগুলো লোড করতে সমস্যা হয়েছে।' });
+        }
+        res.json({ success: true, data: results });
     });
 });
 
@@ -1670,17 +1813,17 @@ app.post('/api/donor/web-pending', async (req, res) => {
             await activateNextDonor(row.request_id).catch(() => {});
         }
 
-        // Return ALL pending requests for this donor (including any still within expiry)
+        // Return ALL pending requests for this donor (including any still within expiry or completed)
         const requests = await dbQuery(`
             SELECT br.id, br.blood_group, br.location, br.district, br.hospital_name,
                    br.needed_time, br.patient_disease, br.contact_number, br.created_at,
-                   dr.status AS response_status, dr.notified_at, dr.responded_at, dr.distance_km
+                   br.status, dr.status AS response_status, dr.notified_at, dr.responded_at, dr.distance_km
             FROM donor_requests dr
             JOIN blood_requests br ON dr.request_id = br.id
             WHERE dr.donor_id = ?
               AND dr.status = 'Pending'
               AND dr.notified_at IS NOT NULL
-              AND br.status = 'Pending'
+              AND br.status IN ('Pending', 'Completed')
             ORDER BY dr.notified_at DESC
         `, [donorId]);
 

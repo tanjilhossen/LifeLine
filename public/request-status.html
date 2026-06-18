@@ -18,13 +18,41 @@
             <span class="brand-mark">🩸</span>
             <span>LifeLine</span>
         </a>
-        <a href="/" class="home-link">+ নতুন রিকোয়েস্ট</a>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="navSearchBtn" class="back-to-search-btn hidden">🔍 রিকোয়েস্ট খুঁজুন</button>
+            <a href="/" class="home-link">+ নতুন রিকোয়েস্ট</a>
+        </div>
     </nav>
 
     <main class="shell">
 
-        <!-- ── Hero ─────────────────────────────────────── -->
-        <header class="hero-panel">
+        <!-- ── Search Portal Container ────────────────────── -->
+        <div id="searchContainer" class="hidden">
+            <section class="panel search-panel" id="searchPanel">
+                <div class="panel-header">
+                    <h2>🔍 রক্তের রিকোয়েস্ট ট্র্যাকিং খুঁজুন</h2>
+                </div>
+                <div class="search-form">
+                    <p class="muted" style="margin-bottom: 16px;">আপনার আবেদনের সময় ব্যবহৃত মোবাইল নম্বরটি দিয়ে পূর্ববর্তী ও বর্তমান সকল আবেদনের লাইভ অবস্থা দেখুন।</p>
+                    <div class="search-input-group">
+                        <input type="tel" id="searchPhoneInput" placeholder="যেমন: 017XXXXXXXX" maxlength="11" />
+                        <button id="searchSubmitBtn" class="call-btn search-btn">অনুসন্ধান</button>
+                    </div>
+                    <div id="searchError" class="error-box hidden" style="margin-top: 16px;"></div>
+                    
+                    <div id="myRequestsWrapper" class="my-requests-wrapper hidden" style="margin-top: 24px;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 14px; font-weight: 700; border-bottom: 1.5px solid var(--slate-100); padding-bottom: 8px;">আপনার রক্তের রিকোয়েস্টসমূহ</h3>
+                        <div id="myRequestsList" class="my-requests-list">
+                            <!-- Dynamic list -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ── Tracking Details Container ──────────────────── -->
+        <div id="trackingContainer">
+            <header class="hero-panel">
             <div class="hero-text">
                 <p class="eyebrow">🔴 Live Blood Request Tracking</p>
                 <h1 id="pageTitle">রিকোয়েস্ট ট্র্যাকিং</h1>
@@ -107,6 +135,7 @@
             </article>
 
         </section>
+        </div>
 
     </main>
 

@@ -77,6 +77,9 @@ function switchPanel(panelId) {
 
     if (panelId === 'applicationsPanel') loadApplications(currentApplicationStatus);
     if (panelId === 'usersPanel') loadUsers(currentUserType);
+    if (panelId === 'bloodRequestsPanel') loadBloodRequests();
+    if (panelId === 'testDataPanel') loadDonorsView();
+    if (panelId === 'overviewPanel') loadStats();
 }
 
 function getMapTarget(context) {
@@ -812,8 +815,129 @@ async function createAccount(endpoint, data, form) {
     }
 }
 
+// --- Blood Requests Panel ---
+async function loadBloodRequests() {
+    const tbody = document.getElementById('bloodRequestsBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-slate-500">Loading...</td></tr>';
+    try {
+        const res = await fetch('/api/superadmin/blood-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterKey })
+        });
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const data = await res.json();
+        if (!data.success) {
+            tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-red-500">${escapeHtml(data.message)}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.data.map(r => `
+            <tr class="border-b hover:bg-slate-50">
+                <td class="p-3">#${r.id}</td>
+                <td class="p-3"><span class="font-bold text-red-600">${escapeHtml(r.blood_group)}</span></td>
+                <td class="p-3">${escapeHtml(r.location || r.district || '')}</td>
+                <td class="p-3">${escapeHtml(r.hospital_name)}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${r.status === 'Active' ? 'bg-green-100 text-green-700' : r.status === 'Fulfilled' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}">${escapeHtml(r.status)}</span></td>
+                <td class="p-3">${r.total_donors_queued} (${r.rejected_count} rejected)</td>
+                <td class="p-3 text-green-600 font-semibold">${escapeHtml(r.accepted_donor_name || '—')}</td>
+                <td class="p-3 text-slate-500">${new Date(r.created_at).toLocaleString('bn-BD')}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="8" class="p-4 text-slate-500">No requests found.</td></tr>';
+    } catch (err) {
+        console.error('Error loading blood requests:', err);
+        tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-red-500">রিকোয়েস্ট লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।</td></tr>`;
+    }
+}
+
+// --- Test Data Panel ---
+async function loadDonorsView() {
+    const tbody = document.getElementById('donorsViewBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-slate-500">Loading...</td></tr>';
+    try {
+        const res = await fetch('/api/superadmin/donors-view', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterKey })
+        });
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const data = await res.json();
+        if (!data.success) {
+            tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-red-500">${escapeHtml(data.message)}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.data.map(d => `
+            <tr class="border-b hover:bg-slate-50">
+                <td class="p-3 font-medium">${escapeHtml(d.name)}</td>
+                <td class="p-3"><span class="font-bold text-red-600">${escapeHtml(d.blood_group)}</span></td>
+                <td class="p-3 text-slate-500">${escapeHtml(d.location || '')}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${d.status === 'Available' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${escapeHtml(d.status)}</span></td>
+                <td class="p-3">${d.has_fcm_token ? '<span class="text-green-600">✅</span>' : '<span class="text-slate-400">❌</span>'}</td>
+                <td class="p-3">${d.total_requests}</td>
+                <td class="p-3 text-green-600">${d.accepted_requests}</td>
+                <td class="p-3 text-amber-600">${d.pending_requests}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="8" class="p-4 text-slate-500">No donors found.</td></tr>';
+    } catch (err) {
+        console.error('Error loading donors view:', err);
+        tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-red-500">ডোনার লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।</td></tr>`;
+    }
+}
+
+// Event Listeners for Blood Requests & Seeding Test Donors
+document.getElementById('refreshBloodRequests')?.addEventListener('click', loadBloodRequests);
+document.getElementById('refreshDonorsView')?.addEventListener('click', loadDonorsView);
+document.getElementById('seedTestDonorsBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('seedTestDonorsBtn');
+    const result = document.getElementById('seedResult');
+    if (!btn || !result) return;
+    btn.textContent = 'Creating donors...';
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/superadmin/seed-test-donors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterKey })
+        });
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const data = await res.json();
+        result.classList.remove('hidden');
+        result.textContent = data.message;
+    } catch (err) {
+        console.error('Error seeding test donors:', err);
+        result.classList.remove('hidden');
+        result.textContent = 'ডোনার তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+    } finally {
+        btn.textContent = '🧪 Create 15 Test Donors Now';
+        btn.disabled = false;
+        loadDonorsView();
+    }
+});
+
 async function refreshDashboard() {
-    await Promise.all([loadStats(), loadApplications(currentApplicationStatus)]);
+    const activeTab = document.querySelector('.navTab.bg-white\\/10');
+    const panelId = activeTab ? activeTab.dataset.panel : 'overviewPanel';
+    
+    const promises = [loadStats()];
+    if (panelId === 'applicationsPanel') {
+        promises.push(loadApplications(currentApplicationStatus));
+    } else if (panelId === 'usersPanel') {
+        promises.push(loadUsers(currentUserType));
+    } else if (panelId === 'bloodRequestsPanel') {
+        promises.push(loadBloodRequests());
+    } else if (panelId === 'testDataPanel') {
+        promises.push(loadDonorsView());
+    } else {
+        promises.push(loadApplications(currentApplicationStatus));
+    }
+    await Promise.all(promises);
 }
 
 refreshDashboard();
